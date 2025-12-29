@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import mysql.connector
 import os
 from dotenv import load_dotenv
@@ -22,9 +22,9 @@ app = FastAPI()
 
 # Pydantic Model for Student
 class Student(BaseModel):
-    name: str
-    age: int
-    grade: str
+    name: str = Field(..., min_length=2, max_length=100)
+    age: int = Field(..., gt=0, lt=100)
+    grade: str = Field(..., min_length=1, max_length=10)
 
 
 # GET: All Students
@@ -65,3 +65,17 @@ def delete_student(student_id: int):
     cursor.execute("DELETE FROM students WHERE id = %s", (student_id,))
     db.commit()
     return {"message": "Student deleted successfully"}
+
+# PUT
+@app.put("/students/{student_id}")
+def update_student(student_id: int, student: Student):
+    cursor.execute("SELECT * FROM students WHERE id= %s", (student_id,))
+    if not cursor.fetchone():
+        raise HTTPException( status_code=404, detail="Student not found!")
+    
+    cursor.execute("UPDATE students SET name=%s, age=%s, grade=%s WHERE id=%s",
+                   (student.name, student.age, student.grade, student_id))
+    db.commit()
+
+    return{ "message": "Student updated successfully",
+        "student_id": student_id}
