@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 import mysql.connector
 import os
 from dotenv import load_dotenv
-
+from typing import Optional
 
 # Database Configuration
 load_dotenv()
@@ -20,11 +20,16 @@ cursor = db.cursor(dictionary=True)
 app = FastAPI()
 
 
-# Pydantic Model for Student
+# Pydantic Model
 class Student(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     age: int = Field(..., gt=0, lt=100)
     grade: str = Field(..., min_length=1, max_length=10)
+
+class StudentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100) 
+    age: Optional[int] = Field(None, gt=0, lt=100)
+    grade: Optional[str] = Field(None, min_length=1, max_length=10)
 
 
 # GET: All Students
@@ -79,3 +84,26 @@ def update_student(student_id: int, student: Student):
 
     return{ "message": "Student updated successfully",
         "student_id": student_id}
+
+#PATCH
+@app.patch("/students/{student_id}")
+def patch_student( student_id: int, student: StudentUpdate):
+    cursor.execute("SELECT * FROM students WHERE id = %s", (student_id,))
+    existing_student = cursor.fetchone()
+
+    if not existing_student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    name= student.name if student.name is not None else existing_student["name"]
+    age= student.age if student.age is not None else existing_student["age"]
+    grade= student.grade if student.grade is not None else existing_student["grade"]
+
+    cursor.execute("UPDATE students SET name = %s, age = %s, grade = %s WHERE id = %s",
+        (name, age, grade, student_id))
+
+    db.commit()
+
+    return {
+        "message" : "Student updated successfully (partial)",
+        "student_id" : student_id
+    }
