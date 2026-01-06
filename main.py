@@ -1,12 +1,20 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
-from database import get_cursor, commit
-
+from database import get_cursor
+from fastapi.staticfiles import StaticFiles
 
 # FastAPI App Initialization
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Pydantic Model
 class Student(BaseModel):
@@ -34,65 +42,69 @@ class Enrollment(BaseModel):
 # GET: All Students
 @app.get("/students")
 def get_students():
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM students")
     students = cursor.fetchall()
+    db.close()
     return students
 
 
 # GET: One Student by ID
 @app.get("/students/{student_id}")
 def get_student(student_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM students WHERE id = %s", (student_id,))
     student = cursor.fetchone()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    db.close()
     return student
 
 
 # POST: Add New Student
 @app.post("/students")
 def add_student(student: Student):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute(
         "INSERT INTO students (name, age, grade) VALUES (%s, %s, %s)",
         (student.name, student.age, student.grade)
     )
-    commit()
+    db.commit()
+    db.close()
     return {"message": "Student added successfully", "id": cursor.lastrowid}
 
 
 # DELETE: Remove Student by ID
 @app.delete("/students/{student_id}")
 def delete_student(student_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM students WHERE id = %s", (student_id,))
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Student not found")
     cursor.execute("DELETE FROM students WHERE id = %s", (student_id,))
-    commit()
+    db.commit()
+    db.close()
     return {"message": "Student deleted successfully"}
 
 # PUT
 @app.put("/students/{student_id}")
 def update_student(student_id: int, student: Student):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM students WHERE id= %s", (student_id,))
     if not cursor.fetchone():
         raise HTTPException( status_code=404, detail="Student not found!")
     
     cursor.execute("UPDATE students SET name=%s, age=%s, grade=%s WHERE id=%s",
                    (student.name, student.age, student.grade, student_id))
-    commit()
-
+    db.commit()
+    db.close()
     return{ "message": "Student updated successfully",
         "student_id": student_id}
 
 #PATCH
 @app.patch("/students/{student_id}")
 def patch_student( student_id: int, student: StudentUpdate):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM students WHERE id = %s", (student_id,))
     existing_student = cursor.fetchone()
 
@@ -106,8 +118,8 @@ def patch_student( student_id: int, student: StudentUpdate):
     cursor.execute("UPDATE students SET name = %s, age = %s, grade = %s WHERE id = %s",
         (name, age, grade, student_id))
 
-    commit()
-
+    db.commit()
+    db.close()
     return {
         "message" : "Student updated successfully (partial)",
         "student_id" : student_id
@@ -117,54 +129,59 @@ def patch_student( student_id: int, student: StudentUpdate):
 
 @app.get("/courses")
 def get_courses():
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM courses")
-    return cursor.fetchall()
+    courses = cursor.fetchall()
+    db.close()
+    return courses
 
 
 @app.get("/courses/{course_id}")
 def get_course(course_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM courses WHERE id = %s", (course_id,))
     course = cursor.fetchone()
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    db.close()
     return course
 
 
 @app.post("/courses")
 def add_course(course: Course):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute(
         "INSERT INTO courses (name, code, credits) VALUES (%s, %s, %s)",
         (course.name, course.code, course.credits)
     )
-    commit()
+    db.commit()
+    db.close()
     return {"message": "Course added", "id": cursor.lastrowid}
 
 
 @app.delete("/courses/{course_id}")
 def delete_course(course_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT * FROM courses WHERE id = %s", (course_id,))
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Course not found")
 
     cursor.execute("DELETE FROM courses WHERE id = %s", (course_id,))
-    commit()
+    db.commit()
+    db.close()
     return {"message": "Course deleted"}
 
 @app.put("/courses/{course_id}")
 def update_course(course_id: int, course: Course):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute("SELECT id FROM courses WHERE id = %s", (course_id,))
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Course not found")
 
     cursor.execute("UPDATE courses SET name = %s, code = %s, credits = %s WHERE id = %s",
                    (course.name, course.code, course.credits, course_id))
-    commit()
-
+    db.commit()
+    db.close()
     return {"message": "Course updated"}
 
 
@@ -173,7 +190,7 @@ def update_course(course_id: int, course: Course):
 #POST
 @app.post("/enroll")
 def enroll_student(enrollment: Enrollment):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     # Check student exists
     cursor.execute("SELECT id FROM students WHERE id = %s", (enrollment.student_id,))
     if not cursor.fetchone():
@@ -197,15 +214,15 @@ def enroll_student(enrollment: Enrollment):
         "INSERT INTO enrollments (student_id, course_id) VALUES (%s, %s)",
         (enrollment.student_id, enrollment.course_id)
     )
-    commit()
-
+    db.commit()
+    db.close()
     return {"message": "Student enrolled successfully"}
 
 
 #GET - Courses for a student
 @app.get("/students/{student_id}/courses")
 def get_student_courses(student_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute(
         """
         SELECT c.id, c.name, c.code, c.credits
@@ -214,12 +231,14 @@ def get_student_courses(student_id: int):
         WHERE e.student_id = %s
         """, (student_id,)
     )
-    return cursor.fetchall()
+    courses = cursor.fetchall()
+    db.close()
+    return courses
 
 # GET - Students in a course
 @app.get("/courses/{course_id}/students")
 def get_course_students(course_id: int):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute(
         """
         SELECT s.id, s.name, s.age, s.grade
@@ -228,12 +247,14 @@ def get_course_students(course_id: int):
         WHERE e.course_id = %s
         """, (course_id,)
     )
-    return cursor.fetchall()
+    students = cursor.fetchall()
+    db.close()
+    return students
 
 # DELETE
 @app.delete("/enroll")
 def delete_enrollment(enrollment: Enrollment):
-    cursor = get_cursor()
+    db, cursor = get_cursor()
     cursor.execute( "SELECT id FROM enrollments WHERE student_id = %s AND course_id = %s",
                    (enrollment.student_id, enrollment.course_id))
     
@@ -243,7 +264,8 @@ def delete_enrollment(enrollment: Enrollment):
     cursor.execute( "DELETE FROM enrollments WHERE student_id = %s AND course_id = %s",
                    (enrollment.student_id, enrollment.course_id)
     )
-    commit()
-
+    db.commit()
+    db.close()
     return {"message": "Enrollment deleted"}
 
+app.mount("/", StaticFiles(directory="static", html=True), name="static")

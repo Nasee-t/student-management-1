@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <div class="section">
+            <h2>Add Student</h2>
+            <input id="name" placeholder="Name">
+            <input id="age" type="number" placeholder="Age">
+            <input id="grade" placeholder="Grade">
+            <button onclick="addStudent()">Add</button>
+        </div>
+        
+        <div class="section">
+            <h2>Students</h2>
+            <ul id="studentsList"></ul>
+        </div>
+
+
+        <div class="section">
+            <h2>Enroll Student to Course</h2>
+
+            <select id="studentSelect">
+                <option value="">Select Student</option>
+            </select>
+
+            <select id="courseSelect">
+                <option value="">Select Course</option>
+            </select>
+
+            <button onclick="enrollStudent()">Enroll</button>
+
+            <p id="enrollMessage"></p>
+        </div>        
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8000";
+
+        // ADD STUDENT
+        async function addStudent() {
+            const name = document.getElementById("name").value;
+            const age = document.getElementById("age").value;
+            const grade = document.getElementById("grade").value;
+
+            const res = await fetch(`${API_BASE}/students`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, age: Number(age), grade })
+            });
+
+            const data = await res.json();
+            alert(data.message || "Student added");
+
+            loadStudents();
+            loadStudentsDropdown();
+        }
+
+        // LOAD ALL STUDENTS
+        async function loadStudents() {
+            const res = await fetch(`${API_BASE}/students`);
+            const students = await res.json();
+
+            const list = document.getElementById("studentsList");
+            list.innerHTML = "";
+
+            students.forEach(s => {
+                const li = document.createElement("li");
+                li.textContent = `${s.name} - ${s.age} (${s.grade})`;
+                list.appendChild(li);
+            });
+        }
+
+        // LOAD STUDENTS DROPDOWN
+        async function loadStudentsDropdown() {
+            const res = await fetch(`${API_BASE}/students`);
+            const students = await res.json();
+
+            const select = document.getElementById("studentSelect");
+            select.innerHTML = `<option value="">Select Student</option>`;
+
+            students.forEach(s => {
+                const option = document.createElement("option");
+                option.value = s.id;
+                option.textContent = `${s.name} (ID: ${s.id})`;
+                select.appendChild(option);
+            });
+        }
+
+
+        // LOAD COURSES DROPDOWN
+        async function loadCoursesDropdown() {
+            const res = await fetch(`${API_BASE}/courses`);
+            const courses = await res.json();
+
+            const select = document.getElementById("courseSelect");
+            select.innerHTML = `<option value="">Select Course</option>`;
+
+            courses.forEach(c => {
+                const option = document.createElement("option");
+                option.value = c.id;
+                option.textContent = c.name;
+                select.appendChild(option);
+            });
+        }
+
+        // ENROLL STUDENT
+        async function enrollStudent() {
+            const studentId = document.getElementById("studentSelect").value;
+            const courseId = document.getElementById("courseSelect").value;
+            const message = document.getElementById("enrollMessage");
+
+            if (!studentId || !courseId) {
+                message.textContent = "Please select both student and course";
+                return;
+            }
+
+            const res = await fetch(`${API_BASE}/enroll`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                student_id: Number(studentId),
+                course_id: Number(courseId)
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                message.textContent = "Enrollment successful ✅";
+            } else {
+                message.textContent = data.detail || "Enrollment failed ❌";
+            }
+        }
+
+        // INITIAL LOAD
+        loadStudents();
+        loadStudentsDropdown();
+        loadCoursesDropdown();
+
+    </script>
+</body>
+</html>
